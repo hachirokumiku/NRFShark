@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NRFShark EZPair</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'win98-grey': '#C0C0C0',
+                        'win98-dark': '#808080',
+                        'win98-light': '#FFFFFF',
+                        'console-bg': '#000000',
+                        'console-fg': '#00FF00',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom CSS for Windows 98 Aesthetic */
+        .win98-border {
+            border-style: solid;
+            border-width: 2px;
+            border-color: #FFFFFF #808080 #808080 #FFFFFF;
+            background-color: #C0C0C0;
+            box-shadow: 1px 1px 0 #000000;
+        }
+
+        .win98-btn {
+            @apply px-4 py-1 text-sm font-semibold rounded-none;
+            border-style: solid;
+            border-width: 2px;
+            border-color: #FFFFFF #000000 #000000 #FFFFFF;
+            box-shadow: 1px 1px 0 #000000;
+        }
+
+        .win98-btn:active {
+            border-color: #000000 #FFFFFF #FFFFFF #000000;
+        }
+        
+        .win98-sunken {
+            border-style: solid;
+            border-width: 2px;
+            border-color: #808080 #FFFFFF #FFFFFF #808080;
+            background-color: #FFFFFF;
+        }
+
+        .tab-btn.active {
+            border-bottom-color: #C0C0C0;
+            margin-bottom: -2px;
+        }
+        
+        /* Ensure console output handles content correctly */
+        #console {
+            white-space: pre;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body class="bg-win98-grey p-4 min-h-screen font-sans">
+    
+    <!-- Message Box container (for non-alert messages) -->
+    <div id="message-box-container"></div>
+
+    <div class="max-w-4xl mx-auto shadow-2xl win98-border p-2">
+        
+        <!-- Header / Status Bar -->
+        <div class="p-2 win98-border flex items-center justify-between mb-4">
+            <h1 class="text-lg font-bold">NRFShark EZPair</h1>
+            <div id="status-label" class="text-sm font-semibold text-red-600 win98-sunken px-2 py-0.5 border border-black">
+                Not Connected (Serial)
+            </div>
+        </div>
+
+        <!-- Top Controls Frame -->
+        <div class="win98-border p-3 mb-4 flex flex-wrap items-center space-x-2 md:space-x-4">
+            
+            <!-- Port Selection (Placeholder) -->
+            <label class="text-sm font-semibold">Port:</label>
+            <select id="port-select" class="win98-sunken p-1 border-2 border-gray-600 focus:outline-none text-sm w-32 md:w-40" disabled>
+                <option value="DEVICE">Device Selected on Connect</option>
+            </select>
+            
+            <button onclick="refreshPorts()" class="win98-btn text-sm">↻ Refresh</button>
+            <button id="connect-btn" onclick="toggleConnection()" class="win98-btn text-sm bg-win98-light">Connect</button>
+            
+            <!-- Firmware Selection (Local Only) -->
+            <label for="firmware-file" class="text-sm font-semibold ml-4">Firmware:</label>
+            <input type="file" id="firmware-file" onchange="updateFirmwareName(this)" accept=".uf2, .hex" class="hidden">
+            <button onclick="document.getElementById('firmware-file').click()" class="win98-btn text-sm bg-win98-light w-48 md:w-64 overflow-hidden whitespace-nowrap text-left" id="firmware-btn">
+                Custom (User provided .uf2 / .hex)
+            </button>
+            
+            <button onclick="startFlashing()" class="win98-btn text-sm bg-win98-light text-red-700">⬇ Flash FW</button>
+            
+            <button onclick="openWizard()" class="win98-btn text-sm bg-win98-dark text-white hover:bg-gray-600">
+                Wizard Pairing
+            </button>
+        </div>
+        
+        <!-- Progress Bar -->
+        <div id="progress-container" class="w-full h-4 win98-sunken p-0.5 mb-4 hidden">
+            <div id="progress-bar" class="h-full bg-blue-600 transition-all duration-300" style="width: 0%"></div>
+        </div>
+
+        <!-- Tabbed Content Area -->
+        <div class="mb-4">
+            <!-- Tab Headers -->
+            <div class="flex border-b-2 border-win98-dark -mb-0.5">
+                <button class="tab-btn win98-btn win98-border bg-win98-grey border-b-2 border-win98-dark active" onclick="showTab('tracker')">Tracker</button>
+                <button class="tab-btn win98-btn win98-border bg-win98-grey border-b-2 border-win98-dark" onclick="showTab('receiver')">Receiver</button>
+                <button class="tab-btn win98-btn win98-border bg-win98-grey border-b-2 border-win98-dark" onclick="showTab('utility')">Utility/Help</button>
+            </div>
+            
+            <!-- Tab Bodies -->
+            <div id="tab-tracker" class="tab-content win98-sunken p-4 grid grid-cols-3 md:grid-cols-6 gap-3">
+                <!-- Tracker Commands -->
+                <button onclick="sendCommand('info')" class="win98-btn">Info</button>
+                <button onclick="sendCommand('reboot')" class="win98-btn">Reboot</button>
+                <button onclick="sendCommand('scan')" class="win98-btn">Scan Sensors</button>
+                <button onclick="sendCommand('uptime')" class="win98-btn">Uptime</button>
+                <button onclick="sendCommand('battery')" class="win98-btn">Battery</button>
+                <button onclick="sendCommand('meow')" class="win98-btn">Meow!</button>
+
+                <button onclick="sendCommand('calibrate')" class="win98-btn">Calibrate ZRO</button>
+                <button onclick="sendCommand('6-side')" class="win98-btn">Calibrate 6 Sides</button>
+                <button onclick="sendCommand('mag')" class="win98-btn">Mag Clear</button>
+                <button onclick="sendCommand('dfu')" class="win98-btn bg-yellow-300">DFU Bootloader</button>
+                <button onclick="sendCommand('debug')" class="win98-btn">Debug Log</button>
+                <button onclick="sendCommand('pair')" class="win98-btn bg-blue-300">Pairing Mode</button>
+
+                <button onclick="sendCommand('clear')" class="win98-btn">Clear Con. Data</button>
+                <button onclick="sendCommand('list')" class="win98-btn">List Sensors</button>
+            </div>
+
+            <div id="tab-receiver" class="tab-content win98-sunken p-4 hidden grid grid-cols-2 md:grid-cols-4 gap-3">
+                <!-- Receiver Commands -->
+                <button onclick="sendCommand('info')" class="win98-btn">Info</button>
+                <button onclick="sendCommand('list')" class="win98-btn">List Paired Devices</button>
+                <button onclick="sendCommand('reboot')" class="win98-btn">Reboot</button>
+                <button onclick="sendCommand('meow')" class="win98-btn">Meow!</button>
+                
+                <button onclick="sendCommand('pair')" class="win98-btn bg-blue-300">Pairing Mode</button>
+                <button onclick="sendCommand('remove')" class="win98-btn">Remove Last</button>
+                <button onclick="sendCommand('clear')" class="win98-btn text-red-700">✖ All Saved Devices</button>
+                <button onclick="sendCommand('exit')" class="win98-btn">⎋ Exit Pairing</button>
+            </div>
+
+            <div id="tab-utility" class="tab-content win98-sunken p-4 hidden text-gray-700">
+                <h2 class="text-xl font-bold mb-3 border-b border-gray-400 pb-1">Utility/Help</h2>
+                <p class="text-sm mb-4">NRFShark EZPair Version 1.0 (Web Serial)</p>
+                <div class="win98-sunken p-3 mb-4">
+                    <p class="text-base font-semibold">About this Utility:</p>
+                    <p class="text-sm">This webpage now uses the Web Serial API for communication with NRF-based devices. It features a Heuristic Pairing Wizard to help automatically configure your setup based on device output.</p>
+                    <p class="text-base font-semibold mt-3 text-red-600">Firmware Note (Local Only):</p>
+                    <p class="text-sm">Firmware files (.uf2 or .hex) must be selected directly from your local hard disk drive (HDD) using the file dialog. **No external downloading** is attempted or supported by this utility.</p>
+                </div>
+                <button onclick="window.open('https://github.com/ICantMakeThings/SmolSlimeConfigurator', '_blank')" class="win98-btn bg-win98-light">
+                    Open Original GitHub Repo
+                </button>
+            </div>
+        </div>
+
+        <!-- CLI Console -->
+        <div class="win98-border p-1 bg-win98-dark mb-4">
+            <!-- Note: Using pre-wrap for console to correctly handle output with new lines -->
+            <div id="console" class="w-full h-48 bg-console-bg text-console-fg font-mono text-xs p-2 resize-none border-none focus:outline-none overflow-y-auto" style="white-space: pre-wrap;">
+Welcome to NRFShark EZPair.
+Awaiting connection and commands (Live Serial).
+</div>
+        </div>
+
+        <!-- Command Entry -->
+        <div class="flex space-x-2">
+            <input type="text" id="command-input" class="flex-grow win98-sunken p-2 border-2 border-gray-600 text-sm" placeholder="Enter custom command (e.g., 'set_ip 192.168.1.1')">
+            <button onclick="sendCustomCommand()" class="win98-btn bg-win98-light">Send</button>
+            <button onclick="clearConsole()" class="win98-btn bg-red-400">X</button>
+        </div>
+    </div>
+    
+    <!-- Wizard Modal (Hidden by default) -->
+    <div id="wizard-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+        <div class="bg-win98-grey win98-border w-11/12 max-w-lg shadow-2xl">
+            <!-- Title Bar -->
+            <div class="bg-blue-800 text-white p-1.5 font-bold flex justify-between items-center">
+                <span>NRFShark EZPair Wizard</span>
+                <button onclick="closeWizard()" class="text-white hover:text-gray-300">X</button>
+            </div>
+            
+            <!-- Wizard Content (Win98 Style) -->
+            <div class="p-2">
+                <div id="wizard-content" class="h-80 win98-sunken p-4 bg-win98-light flex">
+                    <!-- Content will be injected here by JavaScript -->
+                </div>
+
+                <!-- Footer/Navigation -->
+                <div class="p-2 flex justify-end items-center space-x-2 border-t border-win98-dark mt-2">
+                    <button id="wizard-back-btn" onclick="wizardBack()" class="win98-btn" disabled>
+                        &lt; Back
+                    </button>
+                    <button id="wizard-next-btn" onclick="wizardNext()" class="win98-btn">
+                        Next &gt;
+                    </button>
+                    <button onclick="closeWizard()" class="win98-btn">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Global State ---
+        let isConnected = false;
+        let firmwareFileName = 'Custom (User provided .uf2 / .hex)';
+        let firmwareFile = null;
+        
+        // Web Serial API objects
+        let port;
+        let reader;
+        let writer;
+
+        // Wizard-specific state for non-simulated analysis
+        let isCollectingWizardData = false;
+        let wizardDataBuffer = [];
+        let wizardAnalysisResolve = null;
+        let wizardTimeoutId = null;
+
+
+        // --- Console/Log Management (Updated) ---
+        function appendText(text, type = 'default') {
+            const consoleElement = document.getElementById('console');
+            
+            // Create a wrapper div for consistent formatting and color
+            const lineContainer = document.createElement('div');
+            lineContainer.style.color = type === 'error' ? 'red' : (type === 'success' ? '#00FF00' : '#00FF00');
+            lineContainer.textContent = text;
+            
+            consoleElement.appendChild(lineContainer);
+            consoleElement.scrollTop = consoleElement.scrollHeight;
+
+            // If wizard analysis is active, copy the received text to the buffer
+            if (isCollectingWizardData) {
+                wizardDataBuffer.push(text);
+                
+                // Update wizard console display instantly
+                const wizardConsole = document.getElementById('wizard-console');
+                if (wizardConsole) {
+                    wizardConsole.value += text + '\n';
+                    wizardConsole.scrollTop = wizardConsole.scrollHeight;
+                }
+            }
+        }
+
+        // --- Message Box UI (Non-alert replacement) ---
+        function openMessageBox(title, message, type) {
+            const msgBox = document.createElement('div');
+            msgBox.id = 'message-box';
+            msgBox.className = 'fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50';
+            
+            const borderColor = type === 'error' ? 'border-red-600' : (type === 'success' ? 'border-green-600' : 'border-blue-600');
+
+            msgBox.innerHTML = `
+                <div class="bg-win98-grey win98-border w-11/12 max-w-sm shadow-2xl ${borderColor}">
+                    <div class="bg-blue-800 text-white p-1.5 font-bold flex justify-between items-center">
+                        <span>${title}</span>
+                        <button onclick="document.getElementById('message-box').remove()" class="text-white hover:text-gray-300">X</button>
+                    </div>
+                    <div class="p-4 bg-win98-light">
+                        <p class="text-sm mb-4">${message}</p>
+                        <div class="flex justify-end">
+                            <button onclick="document.getElementById('message-box').remove()" class="win98-btn">
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(msgBox);
+        }
+
+        // --- Connection UI Helper ---
+        function updateConnectionUI(connected, message) {
+            const statusLabel = document.getElementById('status-label');
+            const connectBtn = document.getElementById('connect-btn');
+            
+            statusLabel.textContent = connected ? 'Connected (Live Serial)' : 'Not Connected (Serial)';
+            statusLabel.className = connected 
+                ? 'text-sm font-semibold text-green-600 win98-sunken px-2 py-0.5 border border-black'
+                : 'text-sm font-semibold text-red-600 win98-sunken px-2 py-0.5 border border-black';
+            
+            connectBtn.textContent = connected ? 'Disconnect' : 'Connect';
+            if (connected) {
+                connectBtn.classList.add('bg-red-400');
+                connectBtn.classList.remove('bg-win98-light');
+            } else {
+                connectBtn.classList.remove('bg-red-400');
+                connectBtn.classList.add('bg-win98-light');
+            }
+            appendText(message, connected ? 'success' : 'error');
+        }
+
+        // --- Web Serial API Logic ---
+
+        // Decode and push data from serial stream to console
+        async function readLoop() {
+            const textDecoder = new TextDecoder();
+            while (port.readable && isConnected) {
+                reader = port.readable.getReader();
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            break;
+                        }
+                        if (value) {
+                            const text = textDecoder.decode(value);
+                            // Process text line by line to maintain formatting
+                            text.split('\r').forEach(chunk => {
+                                if (chunk.trim()) {
+                                    // Data is processed and logged via appendText
+                                    appendText(chunk.trim());
+                                }
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('Serial read error:', error);
+                    appendText(`ERROR: Serial Read Loop failed: ${error.message}`, 'error');
+                    break; // Exit loop on error
+                } finally {
+                    reader.releaseLock();
+                }
+            }
+            // If loop exits gracefully or due to error, ensure UI reflects disconnected state
+            if (isConnected) {
+                isConnected = false;
+                updateConnectionUI(false, 'Connection lost (Read loop exited)');
+            }
+        }
+
+        async function toggleConnection() {
+            if ('serial' in navigator === false) {
+                return openMessageBox('Browser Error', 'The Web Serial API is required for this utility but is not supported by your browser.', 'error');
+            }
+
+            if (isConnected) {
+                // Disconnect logic
+                try {
+                    if (reader) await reader.cancel(); // Cancel pending reads
+                    if (writer) await writer.close();  // Close writer stream
+                    if (port) await port.close();      // Close the port
+                    port = null;
+                    isConnected = false;
+                    updateConnectionUI(false, 'Connection closed.');
+                } catch (error) {
+                    console.error('Disconnect error:', error);
+                    appendText(`ERROR: Disconnect failed: ${error.message}`, 'error');
+                }
+            } else {
+                // Connect logic
+                try {
+                    // Request port permission (User interaction required)
+                    port = await navigator.serial.requestPort();
+                    
+                    // Open port with common baud rate
+                    await port.open({ baudRate: 115200 }); // NRF devices often use 115200
+                    
+                    writer = port.writable.getWriter();
+                    isConnected = true;
+                    
+                    updateConnectionUI(true, `Connection established to device.`);
+                    
+                    // Start reading data
+                    readLoop();
+
+                } catch (error) {
+                    console.error('Serial connection failed:', error);
+                    // User likely hit cancel
+                    appendText(`ERROR: Connection failed: ${error.message || 'User cancelled or device unavailable'}`, 'error');
+                    isConnected = false;
+                    port = null;
+                    updateConnectionUI(false, 'Connection attempt failed');
+                }
+            }
+        }
+
+        async function refreshPorts() {
+            if ('serial' in navigator === false) {
+                return openMessageBox('Browser Error', 'The Web Serial API is required for this utility but is not supported by your browser.', 'error');
+            }
+
+            appendText('Attempting to list paired serial ports...', 'default');
+
+            try {
+                const portsList = await navigator.serial.getPorts();
+                if (portsList.length > 0) {
+                    const portNames = portsList.map(p => p.getInfo().usbProductId || 'Generic Port').join(', ');
+                    appendText(`Found ${portsList.length} previously granted ports. Use 'Connect' to open one: ${portNames}`, 'success');
+                } else {
+                    appendText('No previously granted ports found. Use the "Connect" button to select a port.', 'default');
+                }
+            } catch (e) {
+                appendText(`ERROR listing ports: ${e.message}`, 'error');
+            }
+        }
+
+        // --- Command Handling (Updated for Serial) ---
+        async function sendCommand(cmd) {
+            if (!isConnected || !writer) {
+                appendText('Error: Not connected or writer unavailable. Cannot send command.', 'error');
+                return;
+            }
+            
+            appendText(`>>> ${cmd}`);
+            
+            try {
+                // Send command followed by a newline for CLI devices
+                const data = new TextEncoder().encode(cmd + '\n');
+                await writer.write(data);
+            } catch (error) {
+                console.error('Serial write error:', error);
+                appendText(`ERROR: Failed to send command: ${error.message}`, 'error');
+            }
+        }
+
+        function sendCustomCommand() {
+            const input = document.getElementById('command-input');
+            const cmd = input.value.trim();
+            if (cmd) {
+                sendCommand(cmd);
+                input.value = '';
+            }
+        }
+
+        function clearConsole() {
+            const consoleElement = document.getElementById('console');
+            consoleElement.innerHTML = '';
+        }
+
+        // --- Firmware Flashing (Mocked Process) ---
+        function updateFirmwareName(input) {
+            if (input.files.length > 0) {
+                firmwareFile = input.files[0];
+                firmwareFileName = firmwareFile.name;
+                document.getElementById('firmware-btn').textContent = `Custom: ${firmwareFileName}`;
+                appendText(`Selected local file: ${firmwareFileName}`, 'success');
+            } else {
+                firmwareFile = null;
+                firmwareFileName = 'Custom (User provided .uf2 / .hex)';
+                document.getElementById('firmware-btn').textContent = firmwareFileName;
+                appendText('Local file selection cancelled.');
+            }
+        }
+
+        function startFlashing() {
+            if (!isConnected) {
+                openMessageBox('Connection Required', 'Error: Not connected. Cannot flash firmware.', 'error');
+                return;
+            }
+            if (!firmwareFile) {
+                openMessageBox('File Required', 'Error: Please select a local firmware file (.uf2 or .hex) first.', 'error');
+                return;
+            }
+
+            appendText(`Initiating flash for ${firmwareFileName}... (Mock Process)`);
+            
+            const progressBar = document.getElementById('progress-bar');
+            const progressContainer = document.getElementById('progress-container');
+            progressContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+
+            let step = 0;
+            const flashSteps = [
+                { percentage: 20, message: "INFO: Entering DFU Bootloader..." },
+                { percentage: 50, message: "INFO: Device mounted as UF2 drive." },
+                { percentage: 80, message: `INFO: Copying ${firmwareFileName} to drive...` },
+                { percentage: 100, message: "DONE: Firmware flashed successfully!" }
+            ];
+
+            const flashInterval = setInterval(() => {
+                if (step < flashSteps.length) {
+                    const current = flashSteps[step];
+                    progressBar.style.width = `${current.percentage}%`;
+                    appendText(current.message);
+                    step++;
+                } else {
+                    clearInterval(flashInterval);
+                    openMessageBox("Flash Complete", "Firmware flash completed successfully! Please wait for device reboot.", "success");
+                    setTimeout(() => {
+                        progressContainer.classList.add('hidden');
+                        progressBar.style.width = '0%';
+                    }, 2000);
+                }
+            }, 1500);
+        }
+        
+        // --- Tab Management ---
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.style.borderBottomColor = '#808080';
+            });
+            
+            const activeBtn = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
+            activeBtn.classList.add('active');
+            activeBtn.style.borderBottomColor = '#C0C0C0';
+        }
+
+        // --- Wizard Pairing Modal (Non-Simulated Logic) ---
+        let wizardStep = 0;
+        let pairingProfile = "N/A";
+        let analysisLog = "";
+
+        // Function to analyze the data buffer and extract the profile
+        function analyzeBuffer(buffer) {
+            let profile = "Unknown/Generic Profile";
+            let foundSpecific = false;
+
+            for (const line of buffer) {
+                // Check for a specific Configuration Profile line (best case)
+                const profileMatch = line.match(/Configuration Profile '(.*?)' selected/i);
+                if (profileMatch && profileMatch[1]) {
+                    profile = profileMatch[1].trim();
+                    foundSpecific = true;
+                    break;
+                }
+                // Check for Board ID (good inference)
+                const boardMatch = line.match(/Board ID detected:\s*(.*)/i);
+                if (boardMatch && boardMatch[1]) {
+                    if (boardMatch[1].includes('REC')) {
+                        profile = "Receiver (Inferred)";
+                    } else if (boardMatch[1].includes('ADVANCED')) {
+                        profile = "Advanced Tracker (Inferred)";
+                    } else {
+                        profile = boardMatch[1].trim() + " (Inferred)";
+                    }
+                }
+            }
+            
+            if (!foundSpecific && buffer.length === 0) {
+                 profile = "No Serial Response Received (Timeout)";
+            }
+            return profile;
+        }
+
+        async function startAnalysis() {
+            const consoleElement = document.getElementById('wizard-console');
+            const statusElement = document.getElementById('analysis-status');
+            const nextBtn = document.getElementById('wizard-next-btn');
+            
+            // Disable navigation
+            document.getElementById('wizard-back-btn').disabled = true;
+            nextBtn.disabled = true;
+
+            if (!isConnected) {
+                statusElement.textContent = "STATUS: ERROR: Device must be connected to run the wizard.";
+                statusElement.classList.remove('text-blue-600', 'text-green-600');
+                statusElement.classList.add('text-red-600');
+                return;
+            }
+
+            statusElement.textContent = "STATUS: Sending 'info' command and awaiting response (Max 2s)...";
+            statusElement.classList.remove('text-red-600', 'text-green-600');
+            statusElement.classList.add('text-blue-600');
+            consoleElement.value = "Starting live serial capture...\n";
+            
+            wizardDataBuffer = [];
+
+            // 1. Set up the collection state
+            isCollectingWizardData = true;
+
+            // 2. Setup Promise to wait for data collection timeout
+            const analysisPromise = new Promise(resolve => {
+                wizardAnalysisResolve = resolve;
+                // Timeout after 2 seconds to stop collection and resolve the promise
+                wizardTimeoutId = setTimeout(() => {
+                    resolve();
+                }, 2000);
+            });
+
+            // 3. Send the command (output will be captured by appendText)
+            sendCommand('info');
+            
+            // 4. Wait for the analysis timeout
+            await analysisPromise;
+
+            // 5. Cleanup collection state
+            isCollectingWizardData = false;
+            clearTimeout(wizardTimeoutId);
+            wizardAnalysisResolve = null;
+            
+            // 6. Analyze the collected data
+            pairingProfile = analyzeBuffer(wizardDataBuffer);
+            analysisLog = wizardDataBuffer.join('\n'); // Store the raw log for the next step
+
+            // 7. Update UI based on analysis
+            if (pairingProfile.includes("No Serial Response")) {
+                 statusElement.textContent = `STATUS: FAILED. ${pairingProfile}.`;
+                 statusElement.classList.remove('text-blue-600', 'text-green-600');
+                 statusElement.classList.add('text-red-600');
+            } else {
+                 statusElement.textContent = `STATUS: Analysis Complete. Profile: ${pairingProfile}`;
+                 statusElement.classList.remove('text-blue-600', 'text-red-600');
+                 statusElement.classList.add('text-green-600');
+                 nextBtn.disabled = false;
+            }
+
+            // Ensure the wizard console contains the full log
+            consoleElement.value = "--- SERIAL LOG CAPTURE ---\n" + analysisLog;
+            consoleElement.scrollTop = consoleElement.scrollHeight;
+        }
+
+
+        function applyWizardActions() {
+            if (isConnected) {
+                // Determine actions based on analysis
+                let commands = [];
+                let actionText = "";
+
+                if (pairingProfile.toLowerCase().includes('receiver')) {
+                    commands = ['list', 'pair'];
+                    actionText = "listing paired devices and entering pairing mode";
+                } else if (pairingProfile.toLowerCase().includes('tracker') || pairingProfile.toLowerCase().includes('advanced')) {
+                    commands = ['clear', '6-side', 'pair'];
+                    actionText = "clearing configuration, running 6-side calibration, and entering pairing mode";
+                } else {
+                    commands = ['pair'];
+                    actionText = "entering generic pairing mode";
+                }
+
+                commands.forEach((cmd, index) => {
+                    setTimeout(() => sendCommand(cmd), index * 1500);
+                });
+                
+                openMessageBox("Wizard Actions Applied", `The recommended actions (${actionText}) have been sent to the device. Monitor the main console for device response.`, "success");
+            } else {
+                openMessageBox("Connection Required", "Please connect the device first before applying wizard actions.", "error");
+            }
+        }
+        
+        // --- Wizard Navigation and Content ---
+        
+        function openWizard() {
+            if (clearInterval) clearInterval(wizardTimeoutId); // Stop any lingering analysis
+            document.getElementById('wizard-modal').classList.remove('hidden', 'flex');
+            document.getElementById('wizard-modal').classList.add('flex');
+            wizardStep = 0;
+            pairingProfile = "N/A";
+            analysisLog = "";
+            renderWizardStep();
+        }
+
+        function closeWizard() {
+            if (clearInterval) clearInterval(wizardTimeoutId); // Stop any lingering analysis
+            isCollectingWizardData = false; // Ensure data collection is off
+            document.getElementById('wizard-modal').classList.remove('flex');
+            document.getElementById('wizard-modal').classList.add('hidden');
+        }
+
+        function wizardNext() {
+            if (wizardStep === 0) {
+                wizardStep++;
+                renderWizardStep();
+                // Trigger analysis immediately on entering step 1
+                startAnalysis(); 
+            } else if (wizardStep === 1) {
+                wizardStep++;
+                renderWizardStep();
+            } else if (wizardStep === 2) {
+                applyWizardActions();
+                closeWizard();
+            }
+        }
+
+        function wizardBack() {
+            if (wizardStep > 0) {
+                wizardStep--;
+                if (wizardStep === 0) {
+                     if (clearInterval) clearInterval(wizardTimeoutId);
+                }
+                renderWizardStep();
+            }
+        }
+
+        const wizardPages = [
+            // Step 0: Welcome
+            () => {
+                document.getElementById('wizard-next-btn').textContent = 'Begin Analysis >';
+                document.getElementById('wizard-back-btn').disabled = true;
+                const content = document.getElementById('wizard-content');
+                content.innerHTML = `
+                    <div class="w-1/3 bg-blue-800 text-white p-4">
+                        <p class="text-xl font-serif font-bold mt-4">Heuristic Wizard</p>
+                        <p class="text-xs mt-8">Step 1 of 3: Welcome</p>
+                    </div>
+                    <div class="w-2/3 p-4 bg-win98-light">
+                        <h2 class="text-lg font-bold mb-4">Welcome to the Pairing Wizard.</h2>
+                        <p class="text-sm mb-4">This utility will attempt to determine your device's configuration profile by analyzing its live serial output signature.</p>
+                        <p class="text-sm mb-4"><strong>Prerequisites:</strong></p>
+                        <ul class="list-disc list-inside text-xs pl-2">
+                            <li>Device must be connected via the main utility panel.</li>
+                            <li>Device is powered on and ready to receive commands.</li>
+                        </ul>
+                        <p class="text-sm mt-6 font-bold">Click 'Begin Analysis' to send the 'info' command and analyze the output.</p>
+                    </div>
+                `;
+            },
+            // Step 1: Analysis in Progress / Results
+            () => {
+                document.getElementById('wizard-next-btn').textContent = 'Next >';
+                document.getElementById('wizard-next-btn').disabled = true; // Disabled until analysis completes
+                document.getElementById('wizard-back-btn').disabled = false;
+                const content = document.getElementById('wizard-content');
+                content.innerHTML = `
+                    <div class="w-full">
+                        <h2 class="text-lg font-bold mb-2">Step 2: Device Analysis</h2>
+                        <div id="analysis-status" class="text-sm font-bold text-blue-600 mb-2">STATUS: Awaiting analysis start...</div>
+                        
+                        <p class="text-xs font-semibold mb-1">Live Serial Capture:</p>
+                        <textarea id="wizard-console" class="w-full h-48 bg-console-bg text-console-fg font-mono text-xs p-2 win98-sunken resize-none" readonly>
+</textarea>
+                    </div>
+                `;
+            },
+            // Step 2: Action Plan
+            () => {
+                document.getElementById('wizard-next-btn').textContent = 'Apply Actions';
+                document.getElementById('wizard-next-btn').disabled = false;
+                document.getElementById('wizard-back-btn').disabled = false;
+                const content = document.getElementById('wizard-content');
+                
+                let recommendations = [];
+                let actionList = "";
+
+                if (pairingProfile.toLowerCase().includes('receiver')) {
+                    recommendations = ["1. List existing paired devices.", "2. Enter `pair` mode to accept new trackers."];
+                    actionList = "list, pair";
+                } else if (pairingProfile.toLowerCase().includes('tracker') || pairingProfile.toLowerCase().includes('advanced')) {
+                    recommendations = ["1. Clear existing connection data (`clear`).", "2. Run 6-side calibration (`6-side`).", "3. Enter pairing mode (`pair`)."];
+                    actionList = "clear, 6-side, pair";
+                } else {
+                    recommendations = ["1. Enter generic pairing mode (`pair`)."];
+                    actionList = "pair";
+                }
+
+                recommendations.forEach(r => actionList += `<li>${r}</li>`);
+
+
+                content.innerHTML = `
+                    <div class="w-1/3 bg-blue-800 text-white p-4">
+                        <p class="text-xl font-serif font-bold mt-4">Heuristic Wizard</p>
+                        <p class="text-xs mt-8">Step 3 of 3: Action Plan</p>
+                    </div>
+                    <div class="w-2/3 p-4 bg-win98-light">
+                        <h2 class="text-lg font-bold mb-2">Analysis Complete!</h2>
+                        <p class="text-sm mb-3">Detected Profile: <strong class="text-blue-700">${pairingProfile}</strong></p>
+                        
+                        <div class="win98-sunken p-2 bg-gray-100 mb-3 h-24 overflow-auto">
+                            <p class="text-sm font-semibold mb-1">Recommended Actions:</p>
+                            <ul class="list-disc list-inside text-sm pl-2">
+                                ${recommendations.map(r => `<li>${r}</li>`).join('')}
+                            </ul>
+                        </div>
+                        
+                        <p class="text-sm">Click <strong>Apply Actions</strong> to automatically send the commands to your connected NRFShark device, or click Cancel to manually run them in the main console.</p>
+                    </div>
+                `;
+            }
+        ];
+
+        function renderWizardStep() {
+            if (wizardStep >= 0 && wizardStep < wizardPages.length) {
+                wizardPages[wizardStep]();
+            } else {
+                closeWizard();
+            }
+        }
+        
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            showTab('tracker');
+        });
+    </script>
+</body>
+</html>
