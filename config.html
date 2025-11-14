@@ -156,7 +156,7 @@
 
             <div id="tab-utility" class="tab-content win98-sunken p-4 hidden text-gray-700">
                 <h2 class="text-xl font-bold mb-3 border-b border-gray-400 pb-1">Utility/Help</h2>
-                <p class="text-sm mb-4">NRFShark EZPair Version 1.0 (Web Serial)</p>
+                <p class="text-sm mb-4">NRFShark EZPair Version 7.0 (Web Refit)</p>
                 <div class="win98-sunken p-3 mb-4">
                     <p class="text-base font-semibold">About this Utility:</p>
                     <p class="text-sm">This webpage now uses the Web Serial API for communication with NRF-based devices. It features a Heuristic Pairing Wizard to help automatically configure your setup based on device output.</p>
@@ -174,7 +174,7 @@
             <!-- Note: Using pre-wrap for console to correctly handle output with new lines -->
             <div id="console" class="w-full h-48 bg-console-bg text-console-fg font-mono text-xs p-2 resize-none border-none focus:outline-none overflow-y-auto" style="white-space: pre-wrap;">
 Welcome to NRFShark EZPair.
-Awaiting connection and commands (Live Serial).
+Awaiting connection and commands (Mock Serial).
 </div>
         </div>
 
@@ -689,111 +689,4 @@ Awaiting connection and commands (Live Serial).
         function wizardBack() {
             if (wizardStep > 0) {
                 wizardStep--;
-                if (wizardStep === 0) {
-                     if (clearInterval) clearInterval(wizardTimeoutId);
-                }
-                renderWizardStep();
-            }
-        }
-
-        const wizardPages = [
-            // Step 0: Welcome
-            () => {
-                document.getElementById('wizard-next-btn').textContent = 'Begin Analysis >';
-                document.getElementById('wizard-back-btn').disabled = true;
-                const content = document.getElementById('wizard-content');
-                content.innerHTML = `
-                    <div class="w-1/3 bg-blue-800 text-white p-4">
-                        <p class="text-xl font-serif font-bold mt-4">Heuristic Wizard</p>
-                        <p class="text-xs mt-8">Step 1 of 3: Welcome</p>
-                    </div>
-                    <div class="w-2/3 p-4 bg-win98-light">
-                        <h2 class="text-lg font-bold mb-4">Welcome to the Pairing Wizard.</h2>
-                        <p class="text-sm mb-4">This utility will attempt to determine your device's configuration profile by analyzing its live serial output signature.</p>
-                        <p class="text-sm mb-4"><strong>Prerequisites:</strong></p>
-                        <ul class="list-disc list-inside text-xs pl-2">
-                            <li>Device must be connected via the main utility panel.</li>
-                            <li>Device is powered on and ready to receive commands.</li>
-                        </ul>
-                        <p class="text-sm mt-6 font-bold">Click 'Begin Analysis' to send the 'info' command and analyze the output.</p>
-                    </div>
-                `;
-            },
-            // Step 1: Analysis in Progress / Results
-            () => {
-                document.getElementById('wizard-next-btn').textContent = 'Next >';
-                document.getElementById('wizard-next-btn').disabled = true; // Disabled until analysis completes
-                document.getElementById('wizard-back-btn').disabled = false;
-                const content = document.getElementById('wizard-content');
-                content.innerHTML = `
-                    <div class="w-full">
-                        <h2 class="text-lg font-bold mb-2">Step 2: Device Analysis</h2>
-                        <div id="analysis-status" class="text-sm font-bold text-blue-600 mb-2">STATUS: Awaiting analysis start...</div>
-                        
-                        <p class="text-xs font-semibold mb-1">Live Serial Capture:</p>
-                        <textarea id="wizard-console" class="w-full h-48 bg-console-bg text-console-fg font-mono text-xs p-2 win98-sunken resize-none" readonly>
-</textarea>
-                    </div>
-                `;
-            },
-            // Step 2: Action Plan
-            () => {
-                document.getElementById('wizard-next-btn').textContent = 'Apply Actions';
-                document.getElementById('wizard-next-btn').disabled = false;
-                document.getElementById('wizard-back-btn').disabled = false;
-                const content = document.getElementById('wizard-content');
-                
-                let recommendations = [];
-                let actionList = "";
-
-                if (pairingProfile.toLowerCase().includes('receiver')) {
-                    recommendations = ["1. List existing paired devices.", "2. Enter `pair` mode to accept new trackers."];
-                    actionList = "list, pair";
-                } else if (pairingProfile.toLowerCase().includes('tracker') || pairingProfile.toLowerCase().includes('advanced')) {
-                    recommendations = ["1. Clear existing connection data (`clear`).", "2. Run 6-side calibration (`6-side`).", "3. Enter pairing mode (`pair`)."];
-                    actionList = "clear, 6-side, pair";
-                } else {
-                    recommendations = ["1. Enter generic pairing mode (`pair`)."];
-                    actionList = "pair";
-                }
-
-                recommendations.forEach(r => actionList += `<li>${r}</li>`);
-
-
-                content.innerHTML = `
-                    <div class="w-1/3 bg-blue-800 text-white p-4">
-                        <p class="text-xl font-serif font-bold mt-4">Heuristic Wizard</p>
-                        <p class="text-xs mt-8">Step 3 of 3: Action Plan</p>
-                    </div>
-                    <div class="w-2/3 p-4 bg-win98-light">
-                        <h2 class="text-lg font-bold mb-2">Analysis Complete!</h2>
-                        <p class="text-sm mb-3">Detected Profile: <strong class="text-blue-700">${pairingProfile}</strong></p>
-                        
-                        <div class="win98-sunken p-2 bg-gray-100 mb-3 h-24 overflow-auto">
-                            <p class="text-sm font-semibold mb-1">Recommended Actions:</p>
-                            <ul class="list-disc list-inside text-sm pl-2">
-                                ${recommendations.map(r => `<li>${r}</li>`).join('')}
-                            </ul>
-                        </div>
-                        
-                        <p class="text-sm">Click <strong>Apply Actions</strong> to automatically send the commands to your connected NRFShark device, or click Cancel to manually run them in the main console.</p>
-                    </div>
-                `;
-            }
-        ];
-
-        function renderWizardStep() {
-            if (wizardStep >= 0 && wizardStep < wizardPages.length) {
-                wizardPages[wizardStep]();
-            } else {
-                closeWizard();
-            }
-        }
-        
-        // --- Initialization ---
-        document.addEventListener('DOMContentLoaded', () => {
-            showTab('tracker');
-        });
-    </script>
-</body>
-</html>
+                if (wizardStep === 0
